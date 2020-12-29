@@ -1,9 +1,11 @@
+import copy
+import random
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from joblib import dump, load
+from tqdm import tqdm
 
 from deepform.data.add_features import LABEL_COLS, pq_index_and_dir
 from deepform.document import Document
@@ -12,7 +14,7 @@ from deepform.logger import logger
 
 @dataclass(frozen=True)
 class DocumentStore:
-    documents: np.ndarray
+    documents: list
 
     def __len__(self):
         return len(self.documents)
@@ -26,18 +28,21 @@ class DocumentStore:
         return self.documents[n]
 
     def random_document(self):
-        return np.random.choice(self.documents)
+        return random.choice(self.documents)
 
     def sample(self, n=None):
         if n is None:
             n = len(self)
-        return DocumentStore(np.random.choice(self.documents, size=n, replace=False))
+        return DocumentStore(random.sample(self.documents, k=n))
 
-    def split(self, percent=0.2):
+    def split(self, val_percent=0.2):
         """Divide into two DocumentStores, e.g. a training and a validation set."""
-        docs = self.sample()
-        index = int(percent * len(self))
-        return DocumentStore(docs[:index]), DocumentStore(docs[index:])
+        docs_copy = copy.deepcopy(self.documents)
+        random.shuffle(docs_copy)
+        split_index = int(val_percent * len(self))
+        return DocumentStore(docs_copy[:split_index]), DocumentStore(
+            docs_copy[split_index:]
+        )
 
     @staticmethod
     def open(index_file, config):
@@ -63,10 +68,11 @@ class DocumentStore:
         # docs = concurrent.thread_map(slug_to_doc, doc_index["slug"])
 
         labels = doc_index[LABEL_COLS.keys()]
-        docs = np.array(
-            [slug_to_doc(slug, labels.loc[slug]) for slug in doc_index.index]
-        )
-        docs = docs[docs != None]  # noqa: E711
+        docs = [
+            slug_to_doc(slug, labels.loc[slug])
+            for slug in tqdm(doc_index.index, desc="Creating docs")
+        ]
+        docs = [d for d in docs if d != None]  # noqa: E711
 
         return DocumentStore(docs)
 

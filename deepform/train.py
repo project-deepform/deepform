@@ -154,7 +154,7 @@ def main(config):
     all_documents = DocumentStore.open(index_file=TRAINING_INDEX, config=config)
 
     # split into validation and training sets
-    validation_set, training_set = all_documents.split(percent=config.val_split)
+    validation_set, training_set = all_documents.split(val_percent=config.val_split)
     print(f"Training on {len(training_set)}, validating on {len(validation_set)}")
 
     model = create_model(config)
